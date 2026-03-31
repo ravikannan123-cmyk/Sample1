@@ -2,6 +2,7 @@ import { useState, useRef, useCallback } from 'react';
 import Papa from 'papaparse';
 import { Upload, PlusCircle, Trash2, CheckCircle, HelpCircle, X } from 'lucide-react';
 import { CATEGORIES, autoCategory } from './categories';
+import { march2026Transactions } from './data/march2026';
 import './App.css';
 
 const MONTHS = [
@@ -104,7 +105,7 @@ function ReviewModal({ pending, onResolve, onSkip, onDismissAll }) {
 // ── Main App ──────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const [rows, setRows] = useState([emptyRow()]);
+  const [rows, setRows] = useState(march2026Transactions);
   const [pending, setPending] = useState([]);
   const [uploadMsg, setUploadMsg] = useState('');
   const [dragOver, setDragOver] = useState(false);
@@ -152,7 +153,7 @@ export default function App() {
     if (!raw) return '';
     const cleaned = raw.toString().replace(/[$,\s]/g, '').replace(/\(/g, '-').replace(/\)/g, '');
     const num = parseFloat(cleaned);
-    return isNaN(num) ? '' : Math.abs(num).toFixed(2);
+    return isNaN(num) ? '' : num.toFixed(2);
   }
 
   function parseDate(raw) {
@@ -226,6 +227,7 @@ export default function App() {
         });
 
         setRows(prev => {
+          // Keep existing rows that have data; append newly imported ones
           const nonEmpty = prev.filter(r => r.expense || r.amount || r.category);
           return [...nonEmpty, ...autoRows];
         });
@@ -366,7 +368,6 @@ export default function App() {
                       type="number"
                       value={row.amount}
                       placeholder="0.00"
-                      min="0"
                       step="0.01"
                       onChange={e => updateRow(row.id, 'amount', e.target.value)}
                     />
