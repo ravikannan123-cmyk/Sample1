@@ -216,6 +216,20 @@ body {
 
 .btn-sm { padding: 6px 12px; font-size: 0.83rem; }
 
+.btn-export {
+  background: #e6fffa;
+  color: #234e52;
+  border: 1px solid #81e6d9;
+}
+.btn-export:hover:not(:disabled) { background: #b2f5ea; border-color: #4fd1c5; }
+
+.table-header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
 .icon-btn {
   border: none;
   background: transparent;

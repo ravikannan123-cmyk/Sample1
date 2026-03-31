@@ -1,6 +1,8 @@
 import { useState, useRef, useCallback } from 'react';
 import Papa from 'papaparse';
-import { Upload, PlusCircle, Trash2, CheckCircle, HelpCircle, X } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { Upload, PlusCircle, Trash2, CheckCircle, HelpCircle, X, FileDown, FileText } from 'lucide-react';
 import { CATEGORIES, autoCategory } from './categories';
 import { march2026Transactions } from './data/march2026';
 import './App.css';
@@ -291,6 +293,112 @@ export default function App() {
 
   const grandTotal = rows.reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0);
 
+  // ── Exports ──
+
+  const exportCSV = () => {
+    const headers = ['Year', 'Month', 'Expense / Description', 'Amount ($)', 'Category'];
+    const dataRows = rows.map(r => [
+      r.year,
+      r.month,
+      `"${(r.expense || '').replace(/"/g, '""')}"`,
+      r.amount,
+      r.category,
+    ]);
+    // Summary block
+    const summaryRows = CATEGORIES
+      .filter(cat => totalByCategory[cat] !== 0)
+      .map(cat => ['', '', `Summary: ${cat}`, totalByCategory[cat].toFixed(2), '']);
+    summaryRows.push(['', '', 'GRAND TOTAL', grandTotal.toFixed(2), '']);
+
+    const csvContent = [
+      headers.join(','),
+      ...dataRows.map(r => r.join(',')),
+      '',
+      'Category Summary',
+      ...summaryRows.map(r => r.join(',')),
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'family_expenses.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportPDF = () => {
+    const doc = new jsPDF({ orientation: 'landscape' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    // Title
+    doc.setFontSize(18);
+    doc.setTextColor(45, 55, 72);
+    doc.text('Family Expense Tracker', pageWidth / 2, 16, { align: 'center' });
+    doc.setFontSize(10);
+    doc.setTextColor(113, 128, 150);
+    doc.text(`Exported on ${new Date().toLocaleDateString()}`, pageWidth / 2, 22, { align: 'center' });
+
+    // Main transactions table
+    autoTable(doc, {
+      startY: 28,
+      head: [['Year', 'Month', 'Expense / Description', 'Amount ($)', 'Category']],
+      body: rows.map(r => [
+        r.year,
+        r.month,
+        r.expense || '',
+        parseFloat(r.amount || 0).toFixed(2),
+        r.category || '—',
+      ]),
+      foot: [['', '', 'Grand Total', grandTotal.toFixed(2), '']],
+      headStyles: { fillColor: [49, 130, 206], textColor: 255, fontStyle: 'bold', fontSize: 9 },
+      footStyles: { fillColor: [247, 250, 252], textColor: [45, 55, 72], fontStyle: 'bold' },
+      bodyStyles: { fontSize: 8, textColor: [45, 55, 72] },
+      alternateRowStyles: { fillColor: [247, 250, 252] },
+      columnStyles: {
+        0: { cellWidth: 18 },
+        1: { cellWidth: 28 },
+        2: { cellWidth: 110 },
+        3: { cellWidth: 30, halign: 'right' },
+        4: { cellWidth: 48 },
+      },
+      didParseCell: (data) => {
+        // Highlight negative amounts (refunds) in red
+        if (data.section === 'body' && data.column.index === 3) {
+          const val = parseFloat(data.cell.raw);
+          if (val < 0) data.cell.styles.textColor = [229, 62, 62];
+        }
+      },
+    });
+
+    // Category summary table
+    const summaryData = CATEGORIES
+      .filter(cat => totalByCategory[cat] !== 0)
+      .map(cat => [cat, `$${totalByCategory[cat].toFixed(2)}`]);
+
+    const afterTable = doc.lastAutoTable.finalY + 10;
+    doc.setFontSize(12);
+    doc.setTextColor(45, 55, 72);
+    doc.text('Spending Summary by Category', 14, afterTable);
+
+    autoTable(doc, {
+      startY: afterTable + 4,
+      head: [['Category', 'Total']],
+      body: summaryData,
+      foot: [['Grand Total', `$${grandTotal.toFixed(2)}`]],
+      headStyles: { fillColor: [49, 130, 206], textColor: 255, fontStyle: 'bold', fontSize: 9 },
+      footStyles: { fillColor: [235, 248, 255], textColor: [43, 108, 176], fontStyle: 'bold' },
+      bodyStyles: { fontSize: 9, textColor: [45, 55, 72] },
+      alternateRowStyles: { fillColor: [247, 250, 252] },
+      columnStyles: {
+        0: { cellWidth: 80 },
+        1: { cellWidth: 40, halign: 'right' },
+      },
+    });
+
+    doc.save('family_expenses.pdf');
+  };
+
   return (
     <div className="app">
       <header className="app-header">
@@ -325,9 +433,17 @@ export default function App() {
       <section className="table-section">
         <div className="table-header-row">
           <h2>Expenses</h2>
-          <button className="btn btn-primary btn-sm" onClick={addRow}>
-            <PlusCircle size={15} /> Add Row
-          </button>
+          <div className="table-header-actions">
+            <button className="btn btn-export btn-sm" onClick={exportCSV} title="Download as CSV (opens in Excel)">
+              <FileDown size={15} /> Export CSV
+            </button>
+            <button className="btn btn-export btn-sm" onClick={exportPDF} title="Download as PDF">
+              <FileText size={15} /> Export PDF
+            </button>
+            <button className="btn btn-primary btn-sm" onClick={addRow}>
+              <PlusCircle size={15} /> Add Row
+            </button>
+          </div>
         </div>
 
         <div className="table-wrap">
